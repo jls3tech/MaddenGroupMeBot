@@ -1,0 +1,449 @@
+{
+    "$connections": {
+        "value": {
+            "azureblob": {
+                "connectionId": "/subscriptions/<subscription>/resourceGroups/MyTestAppJS/providers/Microsoft.Web/connections/azureblob",
+                "connectionName": "azureblob",
+                "id": "/subscriptions/<subscription>/providers/Microsoft.Web/locations/eastus/managedApis/azureblob"
+            },
+            "azuretables": {
+                "connectionId": "/subscriptions/<subscription>/resourceGroups/MyTestAppJS/providers/Microsoft.Web/connections/azuretables",
+                "connectionName": "azuretables",
+                "id": "/subscriptions/<subscription>/providers/Microsoft.Web/locations/eastus/managedApis/azuretables"
+            },
+            "conversionservice": {
+                "connectionId": "/subscriptions/<subscription>/resourceGroups/MyTestAppJS/providers/Microsoft.Web/connections/conversionservice",
+                "connectionName": "conversionservice",
+                "id": "/subscriptions/<subscription>/providers/Microsoft.Web/locations/eastus/managedApis/conversionservice"
+            }
+        }
+    },
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Condition": {
+                "actions": {
+                    "Set_variable": {
+                        "inputs": {
+                            "name": "cmd",
+                            "value": "@split(body('Parse_JSON')?['text'],' ')"
+                        },
+                        "runAfter": {},
+                        "type": "SetVariable"
+                    },
+                    "Switch": {
+                        "cases": {
+                            "Case": {
+                                "actions": {
+                                    "HTTP": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "@{concat(toUpper(variables('cmd')[2]), ' Team Page: http://www.daddyleagues.com/nflh3d/team/',variables('cmd')[2])}"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {},
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "team"
+                            },
+                            "Case_2": {
+                                "actions": {
+                                    "HTTP_2": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "http://www.daddyleagues.com/nflh3d/standing/ranking"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {
+                                            "Html_to_text": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Http"
+                                    },
+                                    "HTTP_3": {
+                                        "inputs": {
+                                            "method": "GET",
+                                            "uri": "http://www.daddyleagues.com/nflh3d/standing/ranking"
+                                        },
+                                        "runAfter": {},
+                                        "type": "Http"
+                                    },
+                                    "Html_to_text": {
+                                        "inputs": {
+                                            "body": "@{body('HTTP_3')}",
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['conversionservice']['connectionId']"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/html2text"
+                                        },
+                                        "runAfter": {
+                                            "HTTP_3": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "ApiConnection"
+                                    }
+                                },
+                                "case": "powerrank"
+                            },
+                            "Case_3": {
+                                "actions": {
+                                    "HTTP_4": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "@{concat(toUpper(variables('cmd')[2]),' ',toUpper(variables('cmd')[4]),' ',toLower(variables('cmd')[3]),' ovr(',toLower(variables('cmd')[5]),') added to trade block')}"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {
+                                            "Insert_Entity_2": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Http"
+                                    },
+                                    "Insert_Entity_2": {
+                                        "inputs": {
+                                            "body": {
+                                                "PartitionKey": "H3d",
+                                                "RowKey": "@guid()",
+                                                "ovr": "@toLower(variables('cmd')[5])",
+                                                "playerlastname": "@toLower(variables('cmd')[3])",
+                                                "position": "@toLower(variables('cmd')[4])",
+                                                "submitter": "@body('Parse_JSON')?['sender_id']",
+                                                "team": "@toLower(variables('cmd')[2])"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azuretables']['connectionId']"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/Tables/@{encodeURIComponent('tradeblock')}/entities"
+                                        },
+                                        "runAfter": {},
+                                        "type": "ApiConnection"
+                                    }
+                                },
+                                "case": "addtrb"
+                            },
+                            "Case_4": {
+                                "actions": {
+                                    "Create_HTML_table": {
+                                        "inputs": {
+                                            "columns": [
+                                                {
+                                                    "header": "Player",
+                                                    "value": "@item()['playerlastname']"
+                                                },
+                                                {
+                                                    "header": "Team",
+                                                    "value": "@item()['team']"
+                                                },
+                                                {
+                                                    "header": "Position",
+                                                    "value": "@item()['position']"
+                                                },
+                                                {
+                                                    "header": "Overall",
+                                                    "value": "@item()['ovr']"
+                                                }
+                                            ],
+                                            "format": "HTML",
+                                            "from": "@body('Get_entities')?['value']"
+                                        },
+                                        "runAfter": {
+                                            "Get_entities": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Table"
+                                    },
+                                    "Create_blob": {
+                                        "inputs": {
+                                            "body": "<!DOCTYPE HTML>\n<html>\n<head>\n<title>H3D Tradeblock</title>\n<META http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n<style>\nh1 {\ntext-align: center;\n}\nbody {\nbackground-color: #FAFAD2\n}\ntable, th, td {\n   border: 1px solid black; \nmargin: auto;\n}\n</style>\n</head>\n<body>\n<h1>NFL H3D Tradeblock</h1>\n@{body('Create_HTML_table')}\n</body>\n</html>",
+                                            "headers": {
+                                                "Content-Type": "text/html"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/datasets/default/files",
+                                            "queries": {
+                                                "folderPath": "/$web",
+                                                "name": "index.html",
+                                                "queryParametersSingleEncoded": true
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Create_HTML_table": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "runtimeConfiguration": {
+                                            "contentTransfer": {
+                                                "transferMode": "Chunked"
+                                            }
+                                        },
+                                        "type": "ApiConnection"
+                                    },
+                                    "Get_entities": {
+                                        "inputs": {
+                                            "headers": {
+                                                "x-ms-client-request-id": "@body('Parse_JSON')?['source_guid']"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azuretables']['connectionId']"
+                                                }
+                                            },
+                                            "method": "get",
+                                            "path": "/Tables/@{encodeURIComponent('tradeblock')}/entities",
+                                            "queries": {
+                                                "$filter": "PartitionKey eq 'H3d'"
+                                            }
+                                        },
+                                        "runAfter": {},
+                                        "type": "ApiConnection"
+                                    },
+                                    "HTTP_5": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "Tradeblock: https://<storageaccount>.blob.core.windows.net/$web/index.html"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {
+                                            "Create_blob": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "trb"
+                            },
+                            "Case_5": {
+                                "actions": {
+                                    "For_each": {
+                                        "actions": {
+                                            "Delete_Entity": {
+                                                "inputs": {
+                                                    "host": {
+                                                        "connection": {
+                                                            "name": "@parameters('$connections')['azuretables']['connectionId']"
+                                                        }
+                                                    },
+                                                    "method": "delete",
+                                                    "path": "/Tables/@{encodeURIComponent('tradeblock')}/entities/etag(PartitionKey='@{encodeURIComponent(items('For_each')?['PartitionKey'])}',RowKey='@{encodeURIComponent(items('For_each')?['RowKey'])}')"
+                                                },
+                                                "runAfter": {},
+                                                "type": "ApiConnection"
+                                            }
+                                        },
+                                        "foreach": "@body('Get_entities_2')?['value']",
+                                        "runAfter": {
+                                            "Get_entities_2": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Foreach"
+                                    },
+                                    "Get_entities_2": {
+                                        "inputs": {
+                                            "headers": {
+                                                "x-ms-client-request-id": "@body('Parse_JSON')?['source_guid']"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azuretables']['connectionId']"
+                                                }
+                                            },
+                                            "method": "get",
+                                            "path": "/Tables/@{encodeURIComponent('tradeblock')}/entities",
+                                            "queries": {
+                                                "$filter": "PartitionKey eq 'H3d' and team eq '@{toLower(variables('cmd')[2])}' and playerlastname eq '@{toLower(variables('cmd')[3])}'"
+                                            }
+                                        },
+                                        "runAfter": {},
+                                        "type": "ApiConnection"
+                                    },
+                                    "HTTP_6": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "@{concat(toUpper(variables('cmd')[2]),' ',toLower(variables('cmd')[3]),' removed from trade block')}"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {
+                                            "For_each": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "rmtrb"
+                            }
+                        },
+                        "default": {
+                            "actions": {}
+                        },
+                        "expression": "@variables('cmd')[1]",
+                        "runAfter": {
+                            "Set_variable": [
+                                "Succeeded"
+                            ]
+                        },
+                        "type": "Switch"
+                    }
+                },
+                "expression": {
+                    "and": [
+                        {
+                            "contains": [
+                                "@toLower(body('Parse_JSON')?['text'])",
+                                "@@h3dbot"
+                            ]
+                        },
+                        {
+                            "not": {
+                                "equals": [
+                                    "@body('Parse_JSON')?['sender_type']",
+                                    "bot"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Parse_JSON": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "If"
+            },
+            "Initialize_variable": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "cmd",
+                            "type": "Array"
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            },
+            "Initialize_variable_2": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "api",
+                            "type": "String",
+                            "value": "<Groupme bot ID>"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_variable": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Parse_JSON": {
+                "inputs": {
+                    "content": "@triggerBody()",
+                    "schema": {
+                        "properties": {
+                            "attachments": {
+                                "type": "array"
+                            },
+                            "avatar_url": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "created_at": {
+                                "type": "integer"
+                            },
+                            "group_id": {
+                                "type": "string"
+                            },
+                            "id": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "sender_id": {
+                                "type": "string"
+                            },
+                            "sender_type": {
+                                "type": "string"
+                            },
+                            "source_guid": {
+                                "type": "string"
+                            },
+                            "system": {
+                                "type": "boolean"
+                            },
+                            "text": {
+                                "type": "string"
+                            },
+                            "user_id": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "runAfter": {
+                    "Initialize_variable_2": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ParseJson"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "manual": {
+                "inputs": {
+                    "schema": {}
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    }
+}
