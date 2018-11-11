@@ -50,6 +50,55 @@
                                 },
                                 "case": "team"
                             },
+                            "Case_10": {
+                                "actions": {
+                                    "Condition_2": {
+                                        "actions": {
+                                            "HTTP_14": {
+                                                "inputs": {
+                                                    "method": "POST",
+                                                    "queries": {
+                                                        "bot_id": "@variables('api')",
+                                                        "text": "Free Agent Listing (All Positions): http://www.daddyleagues.com/nflh3d/players?name=&position=all&team=fa"
+                                                    },
+                                                    "uri": "@variables('gm_uri')"
+                                                },
+                                                "runAfter": {},
+                                                "type": "Http"
+                                            }
+                                        },
+                                        "else": {
+                                            "actions": {
+                                                "HTTP_15": {
+                                                    "inputs": {
+                                                        "method": "POST",
+                                                        "queries": {
+                                                            "bot_id": "@variables('api')",
+                                                            "text": "@{concat('Free Agents Listing (',toupper(variables('cmd')[2]),'): http://www.daddyleagues.com/nflh3d/players?name=&position=',toupper(variables('cmd')[2]),'&team=fa&sorty_by=OVR')}"
+                                                        },
+                                                        "uri": "@variables('gm_uri')"
+                                                    },
+                                                    "runAfter": {},
+                                                    "type": "Http"
+                                                }
+                                            }
+                                        },
+                                        "expression": {
+                                            "and": [
+                                                {
+                                                    "equals": [
+                                                        "@tolower(variables('cmd')[2])",
+                                                        "all"
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "runAfter": {},
+                                        "type": "If"
+                                    }
+                                },
+                                "case": "fa"
+                            },
                             "Case_2": {
                                 "actions": {
                                     "HTTP_2": {
@@ -160,6 +209,10 @@
                                                 {
                                                     "header": "Overall",
                                                     "value": "@item()['ovr']"
+                                                },
+                                                {
+                                                    "header": "Link",
+                                                    "value": "@toLower(concat('<a href=\"https://www.daddyleagues.com/nflh3d/players?name=',item()['playerlastname'],'&position=all&team=',item()['team'],'\"> Player Link </a>'))"
                                                 }
                                             ],
                                             "format": "HTML",
@@ -174,7 +227,7 @@
                                     },
                                     "Create_blob": {
                                         "inputs": {
-                                            "body": "<!DOCTYPE HTML>\n<html>\n<head>\n<title>H3D Tradeblock</title>\n<META http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n<style>\nh1 {\ntext-align: center;\n}\nbody {\nbackground-color: #FAFAD2\n}\ntable, th, td {\n   border: 1px solid black; \nmargin: auto;\n}\n</style>\n</head>\n<body>\n<h1>NFL H3D Tradeblock</h1>\n@{body('Create_HTML_table')}\n</body>\n</html>",
+                                            "body": "<!DOCTYPE HTML>\n<html>\n<head>\n<title>H3D Tradeblock</title>\n<META http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\">\n<style>\nh1 {\ntext-align: center;\n}\ntr:nth-child(even) {background-color: #f2f2f2;}\nbody {\nbackground-color: #FAFAD2\n}\nth {\n    background-color: #0000ff;\n    color: white;\n}\ntable, th, td {\n   border: solid black; \nmargin: auto;\n}\n</style>\n</head>\n<body>\n<h1>NFL H3D Tradeblock</h1>\n@{body('Create_HTML_table')}\n</body>\n</html>",
                                             "headers": {
                                                 "Content-Type": "text/html"
                                             },
@@ -200,6 +253,60 @@
                                             "contentTransfer": {
                                                 "transferMode": "Chunked"
                                             }
+                                        },
+                                        "type": "ApiConnection"
+                                    },
+                                    "Create_blob_2": {
+                                        "inputs": {
+                                            "body": "@replace(replace(replace(body('Get_blob_content'),'&lt;','<'),'&gt;','>'),'&quot;','\"')",
+                                            "headers": {
+                                                "Content-Type": "text/html"
+                                            },
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                                }
+                                            },
+                                            "method": "post",
+                                            "path": "/datasets/default/files",
+                                            "queries": {
+                                                "folderPath": "/$web",
+                                                "name": "index.html",
+                                                "queryParametersSingleEncoded": true
+                                            }
+                                        },
+                                        "runAfter": {
+                                            "Get_blob_content": [
+                                                "Succeeded"
+                                            ]
+                                        },
+                                        "runtimeConfiguration": {
+                                            "contentTransfer": {
+                                                "transferMode": "Chunked"
+                                            }
+                                        },
+                                        "type": "ApiConnection"
+                                    },
+                                    "Get_blob_content": {
+                                        "inputs": {
+                                            "host": {
+                                                "connection": {
+                                                    "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                                }
+                                            },
+                                            "method": "get",
+                                            "path": "/datasets/default/files/@{encodeURIComponent(encodeURIComponent('JTJmJTI0d2ViJTJmaW5kZXguaHRtbA=='))}/content",
+                                            "queries": {
+                                                "inferContentType": true
+                                            }
+                                        },
+                                        "metadata": {
+                                            "JTJmJTI0d2ViJTJmaW5kZXguaHRtbA==": "/$web/index.html"
+                                        },
+                                        "runAfter": {
+                                            "Create_blob": [
+                                                "Succeeded"
+                                            ]
                                         },
                                         "type": "ApiConnection"
                                     },
@@ -232,7 +339,7 @@
                                             "uri": "https://api.groupme.com/v3/bots/post"
                                         },
                                         "runAfter": {
-                                            "Create_blob": [
+                                            "Create_blob_2": [
                                                 "Succeeded"
                                             ]
                                         },
@@ -304,6 +411,140 @@
                                     }
                                 },
                                 "case": "rmtrb"
+                            },
+                            "Case_6": {
+                                "actions": {
+                                    "HTTP_7": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "H3dbot usage: https://<storageaccount>.blob.core.windows.net/$web/usage.html"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {},
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "help"
+                            },
+                            "Case_7": {
+                                "actions": {
+                                    "Switch_2": {
+                                        "cases": {
+                                            "Case": {
+                                                "actions": {
+                                                    "HTTP_8": {
+                                                        "inputs": {
+                                                            "method": "POST",
+                                                            "queries": {
+                                                                "bot_id": "@variables('api')",
+                                                                "text": "Team Stats: http://www.daddyleagues.com/nflh3d/stats/team"
+                                                            },
+                                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                                        },
+                                                        "runAfter": {},
+                                                        "type": "Http"
+                                                    }
+                                                },
+                                                "case": "team"
+                                            },
+                                            "Case_2": {
+                                                "actions": {
+                                                    "HTTP_9": {
+                                                        "inputs": {
+                                                            "method": "POST",
+                                                            "queries": {
+                                                                "bot_id": "@variables('api')",
+                                                                "text": "Player Stats: http://www.daddyleagues.com/nflh3d/stats/player"
+                                                            },
+                                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                                        },
+                                                        "runAfter": {},
+                                                        "type": "Http"
+                                                    }
+                                                },
+                                                "case": "player"
+                                            },
+                                            "Case_3": {
+                                                "actions": {
+                                                    "HTTP_11": {
+                                                        "inputs": {
+                                                            "method": "POST",
+                                                            "queries": {
+                                                                "bot_id": "@variables('api')",
+                                                                "text": "Rookie Stats: http://www.daddyleagues.com/nflh3d/stats/rookie"
+                                                            },
+                                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                                        },
+                                                        "runAfter": {},
+                                                        "type": "Http"
+                                                    }
+                                                },
+                                                "case": "rookie"
+                                            },
+                                            "Case_4": {
+                                                "actions": {
+                                                    "HTTP_10": {
+                                                        "inputs": {
+                                                            "method": "POST",
+                                                            "queries": {
+                                                                "bot_id": "@variables('api')",
+                                                                "text": "H3D Fanasty Stats: http://www.daddyleagues.com/nflh3d/fantasy"
+                                                            },
+                                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                                        },
+                                                        "runAfter": {},
+                                                        "type": "Http"
+                                                    }
+                                                },
+                                                "case": "fanasty"
+                                            }
+                                        },
+                                        "default": {
+                                            "actions": {}
+                                        },
+                                        "expression": "@variables('cmd')[2]",
+                                        "runAfter": {},
+                                        "type": "Switch"
+                                    }
+                                },
+                                "case": "stats"
+                            },
+                            "Case_8": {
+                                "actions": {
+                                    "HTTP_12": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "H3D Standings: http://www.daddyleagues.com/nflh3d/standings"
+                                            },
+                                            "uri": "https://api.groupme.com/v3/bots/post"
+                                        },
+                                        "runAfter": {},
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "standing"
+                            },
+                            "Case_9": {
+                                "actions": {
+                                    "HTTP_13": {
+                                        "inputs": {
+                                            "method": "POST",
+                                            "queries": {
+                                                "bot_id": "@variables('api')",
+                                                "text": "H3d schedule: http://www.daddyleagues.com/nflh3d/schedules"
+                                            },
+                                            "uri": "@variables('gm_uri')"
+                                        },
+                                        "runAfter": {},
+                                        "type": "Http"
+                                    }
+                                },
+                                "case": "schedule"
                             }
                         },
                         "default": {
@@ -361,7 +602,24 @@
                         {
                             "name": "api",
                             "type": "String",
-                            "value": "<Groupme bot ID>"
+                            "value": "<groupme bot id>"
+                        }
+                    ]
+                },
+                "runAfter": {
+                    "Initialize_variable_3": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "InitializeVariable"
+            },
+            "Initialize_variable_3": {
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "gm_uri",
+                            "type": "String",
+                            "value": "https://api.groupme.com/v3/bots/post"
                         }
                     ]
                 },
